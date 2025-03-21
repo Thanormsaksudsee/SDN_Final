@@ -1,0 +1,63 @@
+#create host named red
+sudo ip netns add red
+sudo ip link add red-veth0 type veth peer name red-veth1
+sudo ip link set red-veth1 netns red
+sudo ip netns exec red ip addr add 10.10.20.1/24 dev red-veth1
+sudo ip netns exec red ip link set red-veth1 up
+
+#create host named blue
+sudo ip netns add blue
+sudo ip link add blue-veth0 type veth peer name blue-veth1
+sudo ip link set blue-veth1 netns blue
+sudo ip netns exec blue ip addr add 10.10.20.2/24 dev blue-veth1
+sudo ip netns exec blue ip link set blue-veth1 up
+
+sudo ifconfig red-veth0 up
+sudo ifconfig blue-veth0 up
+
+#Create Switch
+sudo ovs-vsctl add-br s1
+sudo ovs-vsctl add-port s1 red-veth0
+sudo ovs-vsctl add-port s1 blue-veth0
+
+# Adding a Normal flow
+sudo ovs-ofctl -O OpenFlow13 add-flow s1 actions=NORMAL
+
+# Testing
+sudo ip netns exec blue ping 10.10.20.1
+
+
+# -------------------------------------------------------------#
+#Create Switch-2
+sudo ovs-vsctl add-br s2
+
+#add host green
+#create host named green
+sudo ip netns add green
+sudo ip link add green-veth0 type veth peer name green-veth1
+sudo ip link set green-veth1 netns green
+sudo ip netns exec green ip addr add 10.10.20.3/24 dev green-veth1
+sudo ip netns exec green ip link set green-veth1 up
+
+#Create Switch-2
+sudo ifconfig green-veth0 up
+sudo ovs-vsctl add-port s2 green-veth0
+
+#add host yellow
+#create host named yellow
+sudo ip netns add yellow
+sudo ip link add yellow-veth0 type veth peer name yellow-veth1
+sudo ip link set yellow-veth1 netns yellow
+sudo ip netns exec yellow ip addr add 10.10.20.4/24 dev yellow-veth1
+sudo ip netns exec yellow ip link set yellow-veth1 up
+
+#Create Switch-2
+sudo ifconfig yellow-veth0 up
+sudo ovs-vsctl add-port s2 yellow-veth0
+
+# Connect s1 - s2
+sudo ovs-vsctl add-port s1 patch-to-s2 -- set interface patch-to-s2 type=patch options:peer=patch-to-s1
+sudo ovs-vsctl add-port s2 patch-to-s1 -- set interface patch-to-s1 type=patch options:peer=patch-to-s2
+
+# Check
+sudo ovs-vsctl show
